@@ -235,6 +235,7 @@ This could be because some other process is modifying AWS at the same time."""
 
       def self.gateway_name_from_id(region, gateway_id)
         ec2 = ec2_client(region)
+
         @gateways ||= Hash.new do |h, key|
           h[key] = if key == 'local'
             'local'
@@ -245,14 +246,26 @@ This could be because some other process is modifying AWS at the same time."""
             rescue ::Aws::EC2::Errors::InvalidInternetGatewayIDNotFound
               begin
                 vgw_response = ec2.describe_vpn_gateways(vpn_gateway_ids: [key])
-                name_from_tag(vgw_response.data.vpn_gateways.first)
+                name_from_tag(vgw_response.data.vpn_gateways.first)                
               rescue ::Aws::EC2::Errors::InvalidVpnGatewayIDNotFound
-                nil
+                begin
+                  peer_response = ec2.describe_vpc_peering_connections(vpc_peering_connection_ids: [key])
+                  name_from_tag(peer_response.data.vpc_peering_connections.first)
+                rescue ::Aws::EC2::Errors::InvalidVpcPeeringConnectionIdMalformed 
+                  begin
+                    ntw_response = ec2.describe_network_interfaces(network_interface_ids: [key])
+                    ntw_response.data.network_interfaces.first.network_interface_id
+                  rescue ::Aws::EC2::Errors::InvalidNetworkInterfaceIdMalformed
+                    nil
+                  end
+                end
               end
             end
           end
         end
+
         @gateways[gateway_id]
+
       end
 
     end
